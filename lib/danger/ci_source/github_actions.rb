@@ -22,7 +22,7 @@ module Danger
 
     def self.validates_as_pr?(env)
       value = env["GITHUB_EVENT_NAME"]
-      ["pull_request", "pull_request_target"].include?(value)
+      ["pull_request", "pull_request_target", "issues"].include?(value)
     end
 
     def supported_request_sources

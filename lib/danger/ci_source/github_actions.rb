@@ -16,6 +16,8 @@ module Danger
   #  ```
   #
   class GitHubActions < CI
+    attr_accessor :issue_id
+
     def self.validates_as_ci?(env)
       env.key? "GITHUB_ACTION"
     end
@@ -32,7 +34,8 @@ module Danger
     def initialize(env)
       self.repo_slug = env["GITHUB_REPOSITORY"]
       pull_request_event = JSON.parse(File.read(env["GITHUB_EVENT_PATH"]))
-      self.pull_request_id = pull_request_event["number"] || pull_request_event["issue"]["number"]
+      self.pull_request_id = pull_request_event["number"]
+      self.issue_id = pull_request_event["issue"] ? pull_request_event["issue"]["number"] : nil
       self.repo_url = pull_request_event["repository"]["clone_url"]
 
       # if environment variable DANGER_GITHUB_API_TOKEN is not set, use env GITHUB_TOKEN

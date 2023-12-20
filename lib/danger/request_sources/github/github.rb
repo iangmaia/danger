@@ -77,6 +77,8 @@ module Danger
       end
 
       def pr_diff
+        return nil if ci_source.pull_request_id.nil?
+
         @pr_diff ||= client.pull_request(ci_source.repo_slug, ci_source.pull_request_id, accept: "application/vnd.github.v3.diff")
       end
 
@@ -97,6 +99,8 @@ module Danger
       end
 
       def setup_danger_branches
+        return if ci_source.pull_request_id.nil?
+
         # we can use a github specific feature here:
         base_branch = self.pr_json["base"]["ref"]
         base_commit = self.pr_json["base"]["sha"]
@@ -114,13 +118,17 @@ module Danger
       end
 
       def fetch_details
-        self.pr_json = client.pull_request(ci_source.repo_slug, ci_source.pull_request_id)
-        if self.pr_json["message"] == "Moved Permanently"
-          raise "Repo moved or renamed, make sure to update the git remote".red
-        end
+        if ci_source.pull_request_id
+          self.pr_json = client.pull_request(ci_source.repo_slug, ci_source.pull_request_id)
+          if self.pr_json["message"] == "Moved Permanently"
+            raise "Repo moved or renamed, make sure to update the git remote".red
+          end
 
-        fetch_issue_details(self.pr_json)
-        self.ignored_violations = ignored_violations_from_pr
+          fetch_issue_details(self.pr_json)
+          self.ignored_violations = ignored_violations_from_pr
+        elsif ci_source.issue_id
+          self.issue_json = client.issue(ci_source.repo_slug, ci_source.issue_id)
+        end
       end
 
       def ignored_violations_from_pr
@@ -133,6 +141,8 @@ module Danger
       end
 
       def issue_comments
+        return [] if ci_source.pull_request_id.nil?
+
         @comments ||= client.issue_comments(ci_source.repo_slug, ci_source.pull_request_id)
           .map { |comment| Comment.from_github(comment) }
       end
@@ -208,6 +218,8 @@ module Danger
       end
 
       def submit_pull_request_status!(warnings: [], errors: [], details_url: [], danger_id: "danger")
+        return if ci_source.pull_request_id.nil?
+
         status = (errors.count.zero? ? "success" : "failure")
         message = generate_description(warnings: warnings, errors: errors)
         latest_pr_commit_ref = self.pr_json["head"]["sha"]
@@ -255,8 +267,14 @@ module Danger
         # Avoid doing any fetchs if there's no inline comments
         return {} if (warnings + errors + messages + markdowns).select(&:inline?).empty?
 
-        diff_lines = self.pr_diff.lines
-        pr_comments = client.pull_request_comments(ci_source.repo_slug, ci_source.pull_request_id)
+        diff_lines = self.pr_diff&.lines || []
+        pr_comments = []
+        if !ci_source.pull_request_id.nil?
+          pr_comments = client.pull_request_comments(ci_source.repo_slug, ci_source.pull_request_id)
+        elsif !ci_source.issue_id.nil?
+          pr_comments = client.issue_comments(ci_source.repo_slug, ci_source.issue_id)
+        end
+            
         danger_comments = pr_comments.select { |comment| Comment.from_github(comment).generated_by_danger?(danger_id) }
         non_danger_comments = pr_comments - danger_comments
 

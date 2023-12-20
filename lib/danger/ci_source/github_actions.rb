@@ -32,7 +32,7 @@ module Danger
     def initialize(env)
       self.repo_slug = env["GITHUB_REPOSITORY"]
       pull_request_event = JSON.parse(File.read(env["GITHUB_EVENT_PATH"]))
-      self.pull_request_id = pull_request_event["number"]
+      self.pull_request_id = pull_request_event["number"] || pull_request_event["issue"]["number"]
       self.repo_url = pull_request_event["repository"]["clone_url"]
 
       # if environment variable DANGER_GITHUB_API_TOKEN is not set, use env GITHUB_TOKEN
